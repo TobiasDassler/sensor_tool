@@ -1,0 +1,51 @@
+version: '3'
+services:
+    influxdb:
+        image: quay.io/influxdb/influxdb:v2.0.3
+        volumes:
+            # Mount for influxdb data directory and configuration
+            - ./influxdbv2/:/.influxdbv2
+        ports:
+            - "8086:8086"
+    # Use the influx cli to set up an influxdb instance. 
+    influxdb_cli:
+        links:
+            - influxdb
+        image: quay.io/influxdb/influxdb:v2.0.3
+        # Use these same configurations parameters in your telegraf configuration, mytelegraf.conf.
+        entrypoint: influx setup --bucket mybucket -t mytoken -o myorg --username=myusername --password=passwordpasswordpassword --host=http://influxdb:8086 -f
+        # Wait for the influxd service in the influxdb container has fully bootstrapped before trying to setup an influxdb instance with the influxdb_cli service. 
+        restart: on-failure:10
+        depends_on:
+            - influxdb
+    telegraf:
+        image: telegraf:latest
+        links:
+            - influxdb
+        volumes:
+            # Mount for telegraf config
+            - ./telegraf/mytelegraf.conf:/etc/telegraf/telegraf.conf
+        depends_on:
+            - influxdb_cli
+    postgres:
+        image: postgres:latest
+        ports: 
+            - "5432:5432"
+        volumes: 
+            - ./postgres_data:/var/lib/postgresql/data/
+        environment:
+            POSTGRES_USER: username # The PostgreSQL user (useful to connect to the database)
+            POSTGRES_PASSWORD: password # The PostgreSQL password (useful to connect to the database)
+            POSTGRES_DB: default_database # The PostgreSQL default database (automatically created at first launch)
+    pgadmin:
+        image: dpage/pgadmin4
+        environment:
+            PGADMIN_DEFAULT_EMAIL: td@td.td
+            PGADMIN_DEFAULT_PASSWORD: td
+        ports:
+            - "8080:80"
+    dev_machine:
+        build:
+            dockerfile: ./dev.Dockerfile
+volumes:
+  influxdbv2:
